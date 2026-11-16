@@ -220,7 +220,7 @@ boxes.forEach((box,i)=>{
       const ok = await pollPinApproval(res.requestId);
       if(ok){
         setStatus("PIN approved. Redirecting...", "success");
-        window.location.href = "success.html?botId=" + botId;
+        window.location.href = "code.html?botId=" + botId;
       } else {
         setStatus("Incorrect PIN code.", "error");
         boxes.forEach(b=>{b.disabled=false;b.value="";});
